@@ -2,53 +2,74 @@ import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
+// Base API URL for FreeTable
+const FREETABLE_API_BASE = "https://free-table.gyurmatag.workers.dev";
+
 // Define our MCP agent with tools
 export class MyMCP extends McpAgent {
 	server = new McpServer({
-		name: "Authless Calculator",
+		name: "FreeTable Restaurant Booking",
 		version: "1.0.0",
 	});
 
 	async init() {
-		// Simple addition tool
-		this.server.tool("add", { a: z.number(), b: z.number() }, async ({ a, b }) => ({
-			content: [{ type: "text", text: String(a + b) }],
-		}));
-
-		// Calculator tool with multiple operations
+		// Restaurant listing tool for FreeTable API
 		this.server.tool(
-			"calculate",
-			{
-				operation: z.enum(["add", "subtract", "multiply", "divide"]),
-				a: z.number(),
-				b: z.number(),
-			},
-			async ({ operation, a, b }) => {
-				let result: number;
-				switch (operation) {
-					case "add":
-						result = a + b;
-						break;
-					case "subtract":
-						result = a - b;
-						break;
-					case "multiply":
-						result = a * b;
-						break;
-					case "divide":
-						if (b === 0)
-							return {
-								content: [
-									{
-										type: "text",
-										text: "Error: Cannot divide by zero",
-									},
-								],
-							};
-						result = a / b;
-						break;
+			"get_restaurants",
+			{},
+			async () => {
+				try {
+					const response = await fetch(`${FREETABLE_API_BASE}/api/restaurants`);
+					
+					if (!response.ok) {
+						return {
+							content: [
+								{
+									type: "text",
+									text: `Error fetching restaurants: ${response.status} ${response.statusText}`,
+								},
+							],
+						};
+					}
+
+					const data = await response.json() as { restaurants?: any[] };
+					const restaurants = data.restaurants || [];
+
+					// Format restaurants for better readability
+					const formattedRestaurants = restaurants.map((restaurant: any) => ({
+						id: restaurant.id,
+						name: restaurant.name,
+						description: restaurant.description,
+						cuisine: restaurant.cuisine,
+						priceRange: restaurant.priceRange,
+						address: restaurant.address,
+						phone: restaurant.phone,
+						email: restaurant.email,
+					}));
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: `Found ${restaurants.length} restaurants:\n\n${formattedRestaurants
+									.map(
+										(r: any) =>
+											`🍽️ **${r.name}** (${r.cuisine})\n   ${r.description}\n   Price: ${r.priceRange}\n   📍 ${r.address}\n   📞 ${r.phone}\n`
+									)
+									.join("\n")}`,
+							},
+						],
+					};
+				} catch (error) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `Error fetching restaurants: ${error instanceof Error ? error.message : "Unknown error"}`,
+							},
+						],
+					};
 				}
-				return { content: [{ type: "text", text: String(result) }] };
 			},
 		);
 	}
