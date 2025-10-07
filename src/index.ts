@@ -152,6 +152,103 @@ Your table has been reserved! You'll receive a confirmation shortly.`,
 				}
 			},
 		);
+
+		// Update booking tool for FreeTable API
+		this.server.tool(
+			"update_booking",
+			{
+				bookingId: z.number().describe("ID of the booking to update"),
+				customerName: z.string().optional().describe("Updated customer name"),
+				customerEmail: z.string().email().optional().describe("Updated customer email"),
+				bookingDate: z.string().optional().describe("New booking date in YYYY-MM-DD format"),
+				bookingTime: z.string().optional().describe("New booking time in HH:MM format (24-hour)"),
+				partySize: z.number().optional().describe("New party size"),
+				specialRequests: z.string().optional().describe("Updated special requests for the booking"),
+				tableId: z.number().optional().describe("New table ID (if changing table)"),
+			},
+			async ({ bookingId, customerName, customerEmail, bookingDate, bookingTime, partySize, specialRequests, tableId }) => {
+				try {
+					// First, get the current booking to merge with updates
+					const getResponse = await fetch(`${FREETABLE_API_BASE}/api/bookings/${bookingId}`);
+					
+					if (!getResponse.ok) {
+						return {
+							content: [
+								{
+									type: "text",
+									text: `Error fetching booking: ${getResponse.status} ${getResponse.statusText}`,
+								},
+							],
+						};
+					}
+
+					const currentData = await getResponse.json() as { booking: any };
+					const currentBooking = currentData.booking;
+
+					// Prepare update payload with only the fields that are provided
+					const updatePayload: any = {};
+					
+					if (customerName !== undefined) updatePayload.customerName = customerName;
+					if (customerEmail !== undefined) updatePayload.customerEmail = customerEmail;
+					if (bookingDate !== undefined) updatePayload.bookingDate = bookingDate;
+					if (bookingTime !== undefined) updatePayload.bookingTime = bookingTime;
+					if (partySize !== undefined) updatePayload.partySize = partySize;
+					if (specialRequests !== undefined) updatePayload.specialRequests = specialRequests;
+					if (tableId !== undefined) updatePayload.tableId = tableId;
+
+					const response = await fetch(`${FREETABLE_API_BASE}/api/bookings/${bookingId}`, {
+						method: "PUT",
+						headers: {
+							"Content-Type": "application/json",
+						},
+						body: JSON.stringify(updatePayload),
+					});
+
+					if (!response.ok) {
+						const errorText = await response.text();
+						return {
+							content: [
+								{
+									type: "text",
+									text: `Error updating booking: ${response.status} ${response.statusText}\nDetails: ${errorText}`,
+								},
+							],
+						};
+					}
+
+					const data = await response.json() as { booking: any };
+					const booking = data.booking;
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: `✅ **Booking Updated Successfully!**
+
+📅 **Date**: ${booking.bookingDate}
+🕐 **Time**: ${booking.bookingTime}
+👥 **Party Size**: ${booking.partySize}
+🏷️ **Booking ID**: ${booking.id}
+📊 **Status**: ${booking.status}
+
+${booking.specialRequests ? `📝 **Special Requests**: ${booking.specialRequests}` : ""}
+
+Your booking has been modified! You'll receive a confirmation of the changes shortly.`,
+							},
+						],
+					};
+				} catch (error) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `Error updating booking: ${error instanceof Error ? error.message : "Unknown error"}`,
+							},
+						],
+					};
+				}
+			},
+		);
 	}
 }
 
