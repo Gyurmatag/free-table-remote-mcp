@@ -72,6 +72,86 @@ export class MyMCP extends McpAgent {
 				}
 			},
 		);
+
+		// Restaurant booking tool for FreeTable API
+		this.server.tool(
+			"create_booking",
+			{
+				restaurantId: z.number().describe("ID of the restaurant to book"),
+				tableId: z.number().describe("ID of the table to book"),
+				customerName: z.string().describe("Customer's full name"),
+				customerEmail: z.string().email().describe("Customer's email address"),
+				customerPhone: z.string().describe("Customer's phone number"),
+				bookingDate: z.string().describe("Booking date in YYYY-MM-DD format"),
+				bookingTime: z.string().describe("Booking time in HH:MM format (24-hour)"),
+				partySize: z.number().describe("Number of people in the party"),
+				specialRequests: z.string().optional().describe("Any special requests for the booking"),
+			},
+			async ({ restaurantId, tableId, customerName, customerEmail, customerPhone, bookingDate, bookingTime, partySize, specialRequests }) => {
+				try {
+					const response = await fetch(`${FREETABLE_API_BASE}/api/bookings`, {
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+						},
+						body: JSON.stringify({
+							restaurantId,
+							tableId,
+							customerName,
+							customerEmail,
+							customerPhone,
+							bookingDate,
+							bookingTime,
+							partySize,
+							specialRequests: specialRequests || "",
+						}),
+					});
+
+					if (!response.ok) {
+						const errorText = await response.text();
+						return {
+							content: [
+								{
+									type: "text",
+									text: `Error creating booking: ${response.status} ${response.statusText}\nDetails: ${errorText}`,
+								},
+							],
+						};
+					}
+
+					const data = await response.json() as { booking: any };
+					const booking = data.booking;
+
+					return {
+						content: [
+							{
+								type: "text",
+								text: `✅ **Booking Created Successfully!**
+
+📅 **Date**: ${booking.bookingDate}
+🕐 **Time**: ${booking.bookingTime}
+👥 **Party Size**: ${booking.partySize}
+🏷️ **Booking ID**: ${booking.id}
+📊 **Status**: ${booking.status}
+
+${specialRequests ? `📝 **Special Requests**: ${specialRequests}` : ""}
+
+Your table has been reserved! You'll receive a confirmation shortly.`,
+							},
+						],
+					};
+				} catch (error) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `Error creating booking: ${error instanceof Error ? error.message : "Unknown error"}`,
+							},
+						],
+					};
+				}
+			},
+		);
 	}
 }
 
